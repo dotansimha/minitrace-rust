@@ -1,5 +1,6 @@
 // Copyright 2021 TiKV Project Authors. Licensed under Apache-2.0.
 
+use minstant::Instant;
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -193,7 +194,7 @@ pub(crate) struct GlobalCollector {
 
     active_collectors: HashMap<usize, (Vec<SpanCollection>, usize)>,
     committed_records: Vec<SpanRecord>,
-    last_report: std::time::Instant,
+    last_report: minstant::Instant,
 
     // Vectors to be reused by collection loops. They must be empty outside of the `handle_commands` loop.
     start_collects: Vec<StartCollect>,
@@ -217,14 +218,12 @@ impl GlobalCollector {
         {
             std::thread::Builder::new()
                 .name("minitrace-global-collector".to_string())
-                .spawn(move || {
-                    loop {
-                        let begin_instant = std::time::Instant::now();
-                        GLOBAL_COLLECTOR.lock().handle_commands(false);
-                        std::thread::sleep(
-                            COLLECT_LOOP_INTERVAL.saturating_sub(begin_instant.elapsed()),
-                        );
-                    }
+                .spawn(move || loop {
+                    let begin_instant = Instant::now();
+                    GLOBAL_COLLECTOR.lock().handle_commands(false);
+                    std::thread::sleep(
+                        COLLECT_LOOP_INTERVAL.saturating_sub(begin_instant.elapsed()),
+                    );
                 })
                 .unwrap();
         }
@@ -235,7 +234,7 @@ impl GlobalCollector {
 
             active_collectors: HashMap::new(),
             committed_records: Vec::new(),
-            last_report: std::time::Instant::now(),
+            last_report: Instant::now(),
 
             start_collects: Vec::new(),
             drop_collects: Vec::new(),
@@ -424,7 +423,7 @@ impl GlobalCollector {
                 .as_mut()
                 .unwrap()
                 .report(committed_records.drain(..).as_slice());
-            self.last_report = std::time::Instant::now();
+            self.last_report = Instant::now();
         }
     }
 }
